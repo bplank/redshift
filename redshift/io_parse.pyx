@@ -216,6 +216,7 @@ cdef class Sentences:
             for j in range(1, t.length):
                 if g.parse.labels[j] == PUNCT_LABEL:
                     continue
+                assert g.parse.labels[j] != 0
                 nc += t.parse.heads[j] == g.parse.heads[j]
                 n += 1
         return nc/n
