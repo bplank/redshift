@@ -532,6 +532,10 @@ cdef class TransitionSystem:
             for r_id in range(self.r_start, self.r_end):
                 paired_validity[r_id] = False
             paired_validity[self.pair_label_move(labels[s.i], RIGHT)] = True
+        elif valid_moves[RIGHT] and heads[s.i] != s.top:
+            for r_id in range(self.r_start, self.r_end):
+                paired_validity[r_id] = False
+            paired_validity[self.pair_label_move(0, RIGHT)] = True
         else:
             for r_id in range(self.r_start, self.r_end):
                 paired_validity[r_id] = valid_moves[RIGHT]
