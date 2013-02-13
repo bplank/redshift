@@ -68,7 +68,7 @@ cdef lmove_to_str(move, label):
     elif move == REDUCE:
         return 'D'
     else:
-        return '%s' % (moves[move])
+        return '%s-%s' % (moves[move], label)
 
 
 cdef class Parser:
