@@ -589,6 +589,9 @@ cdef class TransitionSystem:
         if g_heads[s.i] == s.top:
             return True
         if has_head_in_buffer(s, s.i, g_heads) and (not self.allow_reattach or self.repair_only):
+            assert not self.shiftless
+            return False
+        if g_heads[s.i] == s.n and not self.allow_reattach:
             return False
         if has_child_in_stack(s, s.i, g_heads):
             return False
@@ -615,6 +618,8 @@ cdef class TransitionSystem:
                 return False
         if self.allow_reattach and has_head_in_buffer(s, s.top, g_heads):
             return False
+        if self.allow_reattach and g_heads[s.top] == s.n:
+            return False
         if self.allow_lower and get_r(s, s.top) != 0:
             for buff_i in range(s.i, s.n):
                 if g_heads[buff_i] == get_r(s, s.top):
@@ -629,9 +634,13 @@ cdef class TransitionSystem:
             return True
         if has_head_in_buffer(s, s.top, g_heads):
             return False
+        if g_heads[s.top] == s.n:
+            return False
         if has_child_in_buffer(s, s.top, g_heads):
             return False
         if self.allow_reattach and g_heads[s.top] == s.heads[s.top]:
+            return False
+        if self.allow_reattach and g_heads[s.top] == s.n:
             return False
         if self.allow_lower:
             for buff_i in range(s.i, s.n):
