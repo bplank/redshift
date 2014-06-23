@@ -432,6 +432,8 @@ cdef class GreedyParser(BaseParser):
         cdef size_t _ = 0
         print "**labels",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
         print "**moves",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
+        # to have access to label names (maybe move one out for efficiency?)
+        label_idx = index.hashes.reverse_label_index()
         while not s.is_finished:
             fill_kernel(s, sent.pos)
             feats = self.features.extract(sent, &s.kernel)
@@ -441,16 +443,32 @@ cdef class GreedyParser(BaseParser):
                                          sent.parse.labels, sent.parse.edits)
             print "n, i, t", s.n, s.i, s.t
             print "pred, gold", pred, gold
-            print "valid",[<int>valid[h] for h in range(self.guide.nr_class)]
+            #print "valid",[<int>valid[h] for h in range(self.guide.nr_class)]
             print "heads",[<int>s.heads[h] for h in range(s.n)]
             print "labels",[<int>s.labels[h] for h in range(s.n)]            
             print "stack",[<int>s.stack[h] for h in range(s.n)]
             print "guess labels",[<int>s.guess_labels[h] for h in range(s.n)]
+        
             print "ledges",[<int>s.ledges[h] for h in range(s.n)]
-            print "history",[<int>s.history[h] for h in range(s.n*3)]
+            #print "history",[<int>s.history[h] for h in range(s.n*3)]
+            print "sent.parse.heads gold?",[<int>sent.parse.heads[h] for h in range(s.n)]
+            print "sent.parse.labels gold?",[<int>sent.parse.labels[h] for h in range(s.n)]
 
+            print "gold label:", sent.parse.labels[s.i], " gold head:", sent.parse.heads[s.i]
+            print "pred label:", s.guess_labels[s.i]
+            print "----->", label_idx.get(s.guess_labels[s.i], 'ERR')
+            if pred != gold and self.cm != None: #if predicted move is different from gold, update
+                # get confusion prob
+                predLabelId = s.guess_labels[s.i]
+                goldLabelId = sent.parse.labels[s.i]
+                goldHeadId = sent.parse.heads[s.i]
+            
+                goldLabel=label_idx.get(goldLabelId)
+                predLabel=label_idx.get(predLabelId)
+                cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
+                print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
 
-            self.guide.update(pred, gold, feats, 1)
+            self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
             self.moves.transition(gold, s)
             self.guide.n_corr += (gold == pred)
             self.guide.total += 1
@@ -524,12 +542,16 @@ class Confusions:
             return self.labels.index(label)
         except ValueError:
             print >>sys.stderr, "label {} is not available".format(label)
+            return -1
 
     def getLabelConfusion(self, labelGold, labelPred):
         try:
             idx1=self.getIndex(labelGold)
             idx2=self.getIndex(labelPred)
-            return self.cm[idx1,idx2]
+            if idx1 != -1 and idx2 != -1:
+                return self.cm[idx1,idx2]
+            else:
+                return self._DEFAULT
         except ValueError:
             print >>sys.stderr, "no information on label confusion"
             return self._DEFAULT
