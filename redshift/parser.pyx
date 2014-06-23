@@ -30,7 +30,7 @@ VOCAB_SIZE = 1e6
 TAG_SET_SIZE = 50
 
 
-DEBUG = False 
+DEBUG = True 
 def set_debug(val):
     global DEBUG
     DEBUG = val
@@ -125,6 +125,9 @@ cdef class BaseParser:
         self.features.set_nr_label(nr_label)
         self.guide.set_classes(range(move_classes))
         self.write_cfg(pjoin(self.model_dir, 'parser.cfg'))
+        print "** sent.getlabels()", [x for x in sents.get_labels()]
+        print "** move classes", move_classes
+        print "** nr_label", nr_label
         if self.beam_width >= 2:
             self.guide.use_cache = True
         indices = list(range(sents.length))
@@ -427,6 +430,8 @@ cdef class GreedyParser(BaseParser):
         cdef size_t pred
         cdef uint64_t* feats
         cdef size_t _ = 0
+        print "**labels",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
+        print "**moves",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
         while not s.is_finished:
             fill_kernel(s, sent.pos)
             feats = self.features.extract(sent, &s.kernel)
@@ -434,6 +439,17 @@ cdef class GreedyParser(BaseParser):
             pred = self._predict(feats, valid, &s.guess_labels[s.i])
             gold = self.moves.break_tie(s, sent.pos, sent.parse.heads,
                                          sent.parse.labels, sent.parse.edits)
+            print "n, i, t", s.n, s.i, s.t
+            print "pred, gold", pred, gold
+            print "valid",[<int>valid[h] for h in range(self.guide.nr_class)]
+            print "heads",[<int>s.heads[h] for h in range(s.n)]
+            print "labels",[<int>s.labels[h] for h in range(s.n)]            
+            print "stack",[<int>s.stack[h] for h in range(s.n)]
+            print "guess labels",[<int>s.guess_labels[h] for h in range(s.n)]
+            print "ledges",[<int>s.ledges[h] for h in range(s.n)]
+            print "history",[<int>s.history[h] for h in range(s.n*3)]
+
+
             self.guide.update(pred, gold, feats, 1)
             self.moves.transition(gold, s)
             self.guide.n_corr += (gold == pred)
