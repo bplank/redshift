@@ -121,7 +121,7 @@ cdef class BaseParser:
         cdef Sentences held_out_gold
         cdef Sentences held_out_parse
         self.say_config()
-        move_classes, nr_label = self.moves.set_labels(*sents.get_labels())
+        move_classes, nr_label = self.moves.set_labels(*sents.get_labels()) #nr_label=nr_deplabels (49); move_classes=86
         self.features.set_nr_label(nr_label)
         self.guide.set_classes(range(move_classes))
         self.write_cfg(pjoin(self.model_dir, 'parser.cfg'))
@@ -489,6 +489,7 @@ def print_train_msg(n, n_corr, n_move, n_hit, n_miss):
 
 
 def _parse_labels_str(labels_str):
+    print >>sys.stderr, labels_str
     return [index.hashes.encode_label(l) for l in labels_str.split(',')]
 
 
