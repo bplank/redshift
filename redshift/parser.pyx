@@ -23,6 +23,8 @@ from learn.perceptron cimport Perceptron
 
 from libc.stdint cimport uint64_t, int64_t
 
+import numpy as np
+import sys
 
 VOCAB_SIZE = 1e6
 TAG_SET_SIZE = 50
@@ -80,13 +82,14 @@ cdef class BaseParser:
     cdef object add_extra
     cdef object train_alg
     cdef int feat_thresh
+    cdef object cm #confusionMatrix for cost-sensitive parsing
 
     def __cinit__(self, model_dir, clean=False, train_alg='static',
                   feat_set="zhang",
                   feat_thresh=0, vocab_thresh=5,
                   allow_reattach=False, allow_reduce=False, use_edit=False,
                   reuse_idx=False, beam_width=1,
-                  ngrams=None, add_clusters=False):
+                  ngrams=None, add_clusters=False,confusions=None):
         self.model_dir = self.setup_model_dir(model_dir, clean)
         self.features = FeatureSet(feat_set=feat_set, ngrams=ngrams,
                                    add_clusters=add_clusters)
@@ -100,6 +103,8 @@ cdef class BaseParser:
         self.moves = TransitionSystem(allow_reattach=allow_reattach,
                                       allow_reduce=allow_reduce, use_edit=use_edit)
         self.guide = Perceptron(self.moves.max_class, pjoin(model_dir, 'model.gz'))
+        self.cm=confusions
+        print>>sys.stderr, self.cm
 
     def setup_model_dir(self, loc, clean):
         if clean and os.path.exists(loc):
@@ -485,3 +490,53 @@ def print_train_msg(n, n_corr, n_move, n_hit, n_miss):
 
 def _parse_labels_str(labels_str):
     return [index.hashes.encode_label(l) for l in labels_str.split(',')]
+
+
+#for now, an in-efficient non-cythonic way... later make cdef class ...
+class Confusions: 
+    
+    _DEFAULT=1.0
+    
+    def __init__(self,symmetric=True):
+        self.labels=[] #list of dependency labels, corresponding to indices in cm matrix
+        self.cm=None #numpy matrix holding actual values
+        self.symmetric=symmetric #that confusion(A,B)==confusion(B,A)
+        
+    def getIndex(self,label):
+        try:
+            return self.labels.index(label)
+        except ValueError:
+            print >>sys.stderr, "label {} is not available".format(label)
+
+    def getLabelConfusion(self, labelGold, labelPred):
+        try:
+            idx1=self.getIndex(labelGold)
+            idx2=self.getIndex(labelPred)
+            return self.cm[idx1,idx2]
+        except ValueError:
+            print >>sys.stderr, "no information on label confusion"
+            return self._DEFAULT
+        
+
+    def readConfusions(self,confusioninput,labels):
+        #confusion matrix
+        self.labels=labels
+        num_labels=len(self.labels)
+        self.cm = np.zeros((num_labels,num_labels))
+        print >>sys.stderr, num_labels
+        #assumes list of lab1,lab2,value 
+        print>>sys.stderr, labels
+        for lab1,lab2,value in confusioninput:
+            self.cm[self.getIndex(lab1),self.getIndex(lab2)] = value
+            if self.symmetric:
+                self.cm[self.getIndex(lab2),self.getIndex(lab1)] = value
+            
+
+    def __str__(self):
+        # print itself out
+        out=""
+        for row in self.cm:
+            out+=" ".join(map(str,row))+ "\n"
+        return out
+
+
