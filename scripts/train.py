@@ -43,10 +43,14 @@ def main(train_loc, model_loc, train_oracle="static", n_iter=15, beam_width=1,
         print >>sys.stderr, "Reading confusion file... ",
         for line in open(confusionfile):
             try:
-                lab1,lab2,count,val=line.strip().split("\t")
+                if line.startswith("#"):
+                    continue
+                #row, col, support, norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j
+                lab1,lab2,count,norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j=line.strip().split("\t")
                 possible_labels.add(lab1)
                 possible_labels.add(lab2)
-                confusioninput.append([lab1,lab2,val])
+                #confusioninput.append([lab1,lab2,val])
+                confusioninput.append([lab1,lab2,count,norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j])
             except IOError:
                 print >>sys.stderr, "Not in valid format: confusion file"
                 exit()
@@ -70,6 +74,7 @@ def main(train_loc, model_loc, train_oracle="static", n_iter=15, beam_width=1,
                               allow_reattach=allow_reattach,confusions=cm)
     train_str = get_train_str(train_loc, n_sents)
     train_data = redshift.io_parse.read_conll(train_str, unlabelled=unlabelled)
+    print train_data
     parser.train(train_data, n_iter=n_iter)
     parser.save()
 

@@ -590,16 +590,19 @@ class Confusions:
 
     def readConfusions(self,confusioninput,labels):
         #confusion matrix
+        #row, col, support, norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j
         self.labels=labels
         num_labels=len(self.labels)
-        self.cm = np.zeros((num_labels,num_labels))
+        self.cm = np.ones((num_labels,num_labels))
         print >>sys.stderr, num_labels
         #assumes list of lab1,lab2,value 
         print>>sys.stderr, labels
-        for lab1,lab2,value in confusioninput:
-            self.cm[self.getIndex(lab1),self.getIndex(lab2)] = value
+        for lab1,lab2,count,norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j in confusioninput:
+        #for lab1,lab2,value in confusioninput:
+            value=float(norm_over_row_i_and_col_j)
+            self.cm[self.getIndex(lab1),self.getIndex(lab2)] = 1 - value
             if self.symmetric:
-                self.cm[self.getIndex(lab2),self.getIndex(lab1)] = value
+                self.cm[self.getIndex(lab2),self.getIndex(lab1)] = 1 - value
             
 
     def __str__(self):

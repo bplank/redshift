@@ -115,7 +115,7 @@ def read_conll(conll_str, moves=None, vocab_thresh=0, unlabelled=False):
         token_strs = sent_str.split('\n')
         edits = [False]
         for tok_id, token_str in enumerate(token_strs):
-            pieces = token_str.split()
+            pieces = token_str.split("\t")
             if len(pieces) == 10:
                 word = pieces[1]
                 pos = pieces[3]
