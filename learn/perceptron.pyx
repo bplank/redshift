@@ -227,7 +227,7 @@ cdef class Perceptron:
                                       self.now, d, clas, <SquareFeature*>feat_addr)
 
     cdef int64_t update(self, size_t pred_i, size_t gold_i,
-                    uint64_t* features, double margin) except -1:
+                    uint64_t* features, double weight) except -1: #rename margin to weight
         cdef size_t i
         cdef uint64_t f
         self.now += 1
@@ -245,13 +245,13 @@ cdef class Perceptron:
             if feat_addr == 0:
                 self.add_feature(f)
             elif feat_addr < self.nr_raws:
-                update_dense(self.now, 1.0, gold_i, self.raws[feat_addr])
-                update_dense(self.now, -1.0, pred_i, self.raws[feat_addr])
+                update_dense(self.now, weight, gold_i, self.raws[feat_addr])
+                update_dense(self.now, -weight, pred_i, self.raws[feat_addr])
             else:
                 update_square(self.nr_class, self.div,
-                              self.now, 1.0, gold_i, <SquareFeature*>feat_addr)
+                              self.now, weight, gold_i, <SquareFeature*>feat_addr)
                 update_square(self.nr_class, self.div,
-                              self.now, -1.0, pred_i, <SquareFeature*>feat_addr)
+                              self.now, -weight, pred_i, <SquareFeature*>feat_addr)
    
     cdef inline int fill_scores(self, uint64_t* features, double* scores) except -1:
         cdef size_t i, f, j, k, c

@@ -30,7 +30,7 @@ VOCAB_SIZE = 1e6
 TAG_SET_SIZE = 50
 
 
-DEBUG = True 
+DEBUG = False 
 def set_debug(val):
     global DEBUG
     DEBUG = val
@@ -104,7 +104,7 @@ cdef class BaseParser:
                                       allow_reduce=allow_reduce, use_edit=use_edit)
         self.guide = Perceptron(self.moves.max_class, pjoin(model_dir, 'model.gz'))
         self.cm=confusions
-        print>>sys.stderr, self.cm
+        
 
     def setup_model_dir(self, loc, clean):
         if clean and os.path.exists(loc):
@@ -125,9 +125,10 @@ cdef class BaseParser:
         self.features.set_nr_label(nr_label)
         self.guide.set_classes(range(move_classes))
         self.write_cfg(pjoin(self.model_dir, 'parser.cfg'))
-        print "** sent.getlabels()", [x for x in sents.get_labels()]
-        print "** move classes", move_classes
-        print "** nr_label", nr_label
+        if DEBUG:
+            print "** sent.getlabels()", [x for x in sents.get_labels()]
+            print "** move classes", move_classes
+            print "** nr_label", nr_label
         if self.beam_width >= 2:
             self.guide.use_cache = True
         indices = list(range(sents.length))
@@ -430,10 +431,12 @@ cdef class GreedyParser(BaseParser):
         cdef size_t pred
         cdef uint64_t* feats
         cdef size_t _ = 0
-        print "**labels",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
-        print "**moves",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
+        #print "**labels",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
+        #print "**moves",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
         # to have access to label names (maybe move one out for efficiency?)
         label_idx = index.hashes.reverse_label_index()
+        cdef double cm_scale = 1.0  #default cost-sensitive value
+
         while not s.is_finished:
             fill_kernel(s, sent.pos)
             feats = self.features.extract(sent, &s.kernel)
@@ -441,22 +444,26 @@ cdef class GreedyParser(BaseParser):
             pred = self._predict(feats, valid, &s.guess_labels[s.i])
             gold = self.moves.break_tie(s, sent.pos, sent.parse.heads,
                                          sent.parse.labels, sent.parse.edits)
-            print "n, i, t", s.n, s.i, s.t
-            print "pred, gold", pred, gold
-            #print "valid",[<int>valid[h] for h in range(self.guide.nr_class)]
-            print "heads",[<int>s.heads[h] for h in range(s.n)]
-            print "labels",[<int>s.labels[h] for h in range(s.n)]            
-            print "stack",[<int>s.stack[h] for h in range(s.n)]
-            print "guess labels",[<int>s.guess_labels[h] for h in range(s.n)]
-        
-            print "ledges",[<int>s.ledges[h] for h in range(s.n)]
-            #print "history",[<int>s.history[h] for h in range(s.n*3)]
-            print "sent.parse.heads gold?",[<int>sent.parse.heads[h] for h in range(s.n)]
-            print "sent.parse.labels gold?",[<int>sent.parse.labels[h] for h in range(s.n)]
 
-            print "gold label:", sent.parse.labels[s.i], " gold head:", sent.parse.heads[s.i]
-            print "pred label:", s.guess_labels[s.i]
-            print "----->", label_idx.get(s.guess_labels[s.i], 'ERR')
+            if DEBUG:
+                print "n, i, t", s.n, s.i, s.t
+                print "pred, gold", pred, gold
+                #print "valid",[<int>valid[h] for h in range(self.guide.nr_class)]
+                print "heads",[<int>s.heads[h] for h in range(s.n)]
+                print "labels",[<int>s.labels[h] for h in range(s.n)]            
+                print "stack",[<int>s.stack[h] for h in range(s.n)]
+                print "guess labels",[<int>s.guess_labels[h] for h in range(s.n)]
+                # where are s.guess_heads[s.i] ?? 
+
+                print "ledges",[<int>s.ledges[h] for h in range(s.n)]
+                print "sent.parse.heads gold",[<int>sent.parse.heads[h] for h in range(s.n)]
+                print "sent.parse.labels gold",[<int>sent.parse.labels[h] for h in range(s.n)]
+            
+                print "gold label:", sent.parse.labels[s.i], " gold head:", sent.parse.heads[s.i]
+                print "pred label:", s.guess_labels[s.i]
+                print "----->", label_idx.get(s.guess_labels[s.i], 'ERR')
+
+            
             if pred != gold and self.cm != None: #if predicted move is different from gold, update
                 # get confusion prob
                 predLabelId = s.guess_labels[s.i]
@@ -466,9 +473,13 @@ cdef class GreedyParser(BaseParser):
                 goldLabel=label_idx.get(goldLabelId)
                 predLabel=label_idx.get(predLabelId)
                 cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
-                print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
+                if DEBUG:
+                    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
 
-            self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
+            if self.cm != None:
+                self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
+            else:
+                self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
             self.moves.transition(gold, s)
             self.guide.n_corr += (gold == pred)
             self.guide.total += 1
