@@ -407,6 +407,8 @@ cdef class GreedyParser(BaseParser):
         cdef size_t pred
         cdef uint64_t* feats
         cdef size_t _ = 0
+        label_idx = index.hashes.reverse_label_index()
+        cdef double cm_scale = 1.0  #default cost-sensitive value
         while not s.is_finished:
             fill_kernel(s, sent.pos)
             self.moves.fill_valid(s, valid)
@@ -415,7 +417,24 @@ cdef class GreedyParser(BaseParser):
             costs = self.moves.get_costs(s, sent.pos, sent.parse.heads,
                                          sent.parse.labels, sent.parse.edits)
             gold = pred if costs[pred] == 0 else self._predict(feats, costs, &_)
-            self.guide.update(pred, gold, feats, 1)
+            
+            if pred != gold and self.cm != None: #if predicted move is different from gold, update
+                # get confusion prob
+                predLabelId = s.guess_labels[s.i]
+                goldLabelId = sent.parse.labels[s.i]
+                goldHeadId = sent.parse.heads[s.i]
+            
+                goldLabel=label_idx.get(goldLabelId)
+                predLabel=label_idx.get(predLabelId)
+                cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
+                if DEBUG:
+                    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
+
+            if self.cm != None:
+                self.guide.update(pred, gold, feats, cm_scale) # in original code 1 is not used!
+            else:
+                self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
+
             if iter_num >= 2 and random.random() < FOLLOW_ERR_PC:
                 self.moves.transition(pred, s)
             else:
@@ -477,7 +496,7 @@ cdef class GreedyParser(BaseParser):
                     print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
 
             if self.cm != None:
-                self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
+                self.guide.update(pred, gold, feats, cm_scale) # in original code 1 is not used!
             else:
                 self.guide.update(pred, gold, feats, 1) # in original code 1 is not used!
             self.moves.transition(gold, s)
@@ -552,7 +571,8 @@ class Confusions:
         try:
             return self.labels.index(label)
         except ValueError:
-            print >>sys.stderr, "label {} is not available".format(label)
+            if DEBUG:
+                print >>sys.stderr, "label {} is not available".format(label)
             return -1
 
     def getLabelConfusion(self, labelGold, labelPred):
