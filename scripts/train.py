@@ -30,11 +30,12 @@ def get_train_str(train_loc, n_sents):
     n_sents=("Number of sentences to train from", "option", "n", int),
     unlabelled=("Learn unlabelled arcs", "flag", "u", bool),
     # adding confusion matrix
-    confusionfile=("confusion file", "option", "c", str)
+    confusionfile=("confusione file", "option", "c", str),
+    confusiontype=("confusion type", "option", "t", str) # "label" or "headpos"
 )
 def main(train_loc, model_loc, train_oracle="static", n_iter=15, beam_width=1,
          feat_thresh=10, allow_reattach=False, allow_reduce=False, unlabelled=False,
-         n_sents=0, seed=0,confusionfile=None):
+         n_sents=0, seed=0,confusionfile=None,confusiontype=None):
 
     cm=None #confusion object
     if confusionfile:
@@ -54,7 +55,7 @@ def main(train_loc, model_loc, train_oracle="static", n_iter=15, beam_width=1,
             except IOError:
                 print >>sys.stderr, "Not in valid format: confusion file"
                 exit()
-            cm = Confusions()
+            cm = Confusions(confusiontype=confusiontype)
             cm.readConfusions(confusioninput,list(possible_labels))
             print cm
 

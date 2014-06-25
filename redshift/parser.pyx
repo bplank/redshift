@@ -30,7 +30,7 @@ VOCAB_SIZE = 1e6
 TAG_SET_SIZE = 50
 
 
-DEBUG = False 
+DEBUG = False
 def set_debug(val):
     global DEBUG
     DEBUG = val
@@ -421,14 +421,20 @@ cdef class GreedyParser(BaseParser):
             if pred != gold and self.cm != None: #if predicted move is different from gold, update
                 # get confusion prob
                 predLabelId = s.guess_labels[s.i]
-                goldLabelId = sent.parse.labels[s.i]
-                goldHeadId = sent.parse.heads[s.i]
+                goldLabelId = sent.parse.labels[s.i-1]
+                goldHeadId = sent.parse.heads[s.i-1]
+                predHeadId= self.moves.retrieve_predicted_head(gold,s)
             
                 goldLabel=label_idx.get(goldLabelId)
                 predLabel=label_idx.get(predLabelId)
-                cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
-                if DEBUG:
-                    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
+                if self.cm.confusiontype=="label":
+                    cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
+                elif self.cm.confusiontype=="headpos":
+                    goldHeadPos=sent.pos[goldHeadId]
+                    predHeadPos=sent.pos[predHeadId]
+                    cm_scale = self.cm.getLabelConfusion(goldHeadPos,predHeadPos)
+                #if DEBUG:
+                #    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
 
             if self.cm != None:
                 self.guide.update(pred, gold, feats, cm_scale) # in original code 1 is not used!
@@ -478,22 +484,31 @@ cdef class GreedyParser(BaseParser):
                 print "sent.parse.heads gold",[<int>sent.parse.heads[h] for h in range(s.n)]
                 print "sent.parse.labels gold",[<int>sent.parse.labels[h] for h in range(s.n)]
             
-                print "gold label:", sent.parse.labels[s.i], " gold head:", sent.parse.heads[s.i]
+                print "gold label:", sent.parse.labels[s.i-1]
+                print " gold head:", sent.parse.heads[s.i-1]
                 print "pred label:", s.guess_labels[s.i]
+                predHeadId= self.moves.retrieve_predicted_head(gold,s)
+                print "pred head:", predHeadId
+
                 print "----->", label_idx.get(s.guess_labels[s.i], 'ERR')
 
             
             if pred != gold and self.cm != None: #if predicted move is different from gold, update
                 # get confusion prob
                 predLabelId = s.guess_labels[s.i]
-                goldLabelId = sent.parse.labels[s.i]
-                goldHeadId = sent.parse.heads[s.i]
-            
+                goldLabelId = sent.parse.labels[s.i-1] #gold are one away
+                goldHeadId = sent.parse.heads[s.i-1]
+                predHeadId= self.moves.retrieve_predicted_head(gold,s)
                 goldLabel=label_idx.get(goldLabelId)
                 predLabel=label_idx.get(predLabelId)
-                cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
-                if DEBUG:
-                    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
+                if self.cm.confusiontype=="label":
+                    cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
+                elif self.cm.confusiontype=="headpos":
+                    goldHeadPos=sent.pos[goldHeadId]
+                    predHeadPos=sent.pos[predHeadId]
+                    cm_scale = self.cm.getLabelConfusion(goldHeadPos,predHeadPos)
+                #if DEBUG:
+                #    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
 
             if self.cm != None:
                 self.guide.update(pred, gold, feats, cm_scale) # in original code 1 is not used!
@@ -562,10 +577,10 @@ class Confusions:
     
     _DEFAULT=1.0
     
-    def __init__(self,symmetric=True):
+    def __init__(self,confusiontype="label"):
         self.labels=[] #list of dependency labels, corresponding to indices in cm matrix
         self.cm=None #numpy matrix holding actual values
-        self.symmetric=symmetric #that confusion(A,B)==confusion(B,A)
+        self.confusiontype=confusiontype
         
     def getIndex(self,label):
         try:
@@ -587,7 +602,6 @@ class Confusions:
             print >>sys.stderr, "no information on label confusion"
             return self._DEFAULT
         
-
     def readConfusions(self,confusioninput,labels):
         #confusion matrix
         #row, col, support, norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j
@@ -600,9 +614,8 @@ class Confusions:
         for lab1,lab2,count,norm_over_total, norm_over_row_i, norm_over_row_i_and_col_j in confusioninput:
         #for lab1,lab2,value in confusioninput:
             value=float(norm_over_row_i_and_col_j)
+            #value=float(norm_over_row_i)
             self.cm[self.getIndex(lab1),self.getIndex(lab2)] = 1 - value
-            if self.symmetric:
-                self.cm[self.getIndex(lab2),self.getIndex(lab1)] = 1 - value
             
 
     def __str__(self):

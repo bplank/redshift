@@ -1,3 +1,4 @@
+
 from _state cimport *
 
 cdef transition_to_str(State* s, size_t move, label, object tokens)
@@ -33,7 +34,8 @@ cdef class TransitionSystem:
     cdef size_t p_end
     cdef size_t erase_label
     cdef size_t counter
-
+    
+    cdef size_t retrieve_predicted_head(self, size_t clas, State *s) except -1
     cdef int transition(self, size_t clas, State *s) except -1
     cdef int* get_costs(self, State* s, size_t* tags, size_t* heads,
                         size_t* labels, bint* costs) except NULL

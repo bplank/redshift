@@ -105,7 +105,31 @@ cdef class TransitionSystem:
             self.p_end = clas
         self.nr_class = clas
         return clas, len(set(list(left_labels) + list(right_labels)))
-        
+
+    # add function for CM to retrieve predicted head (from state and pred move) before doing actual move
+    cdef size_t retrieve_predicted_head(self, size_t clas, State *s) except -1:
+        cdef size_t head, move #, child, new_parent, new_child, c, gc, move, label, end
+        #cdef int idx
+        if s.stack_len >= 1:
+            assert s.top != 0
+        assert not s.is_finished
+        move = self.moves[clas]
+        #label = self.labels[clas]
+
+        if move == LEFT:
+            #child = pop_stack(s)
+            head= s.i
+            #push_stack(s)
+            #add_dep(s, head, child, label)
+            return head
+        elif move == RIGHT:
+            #child = s.i
+            head = s.top
+            #add_dep(s, head, child, label)
+            #push_stack(s)
+            return head
+
+
     cdef int transition(self, size_t clas, State *s) except -1:
         cdef size_t head, child, new_parent, new_child, c, gc, move, label, end
         cdef int idx
