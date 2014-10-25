@@ -2,7 +2,7 @@ from libc.stdlib cimport malloc, calloc, free
 from libc.string cimport strcpy, memcpy
 import index.hashes
 cimport index.hashes
-
+#import sys
 
 cdef Sentence* make_sentence(size_t id_, size_t length, py_ids, py_words, py_tags,
                              size_t thresh):
@@ -153,6 +153,7 @@ def read_conll(conll_str, moves=None, vocab_thresh=0, unlabelled=False):
         sent = make_sentence(id_, len(ids), ids, words, tags, vocab_thresh)
         add_parse(sent, heads, labels, edits)
         sentences.add(sent, words, tags)
+#        print >>sys.stderr, labels
     if moves is not None and moves.strip():
         sentences.add_moves(moves)
     return sentences

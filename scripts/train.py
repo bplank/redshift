@@ -31,7 +31,7 @@ def get_train_str(train_loc, n_sents):
     unlabelled=("Learn unlabelled arcs", "flag", "u", bool),
     # adding confusion matrix
     confusionfile=("confusione file", "option", "c", str),
-    confusiontype=("confusion type", "option", "t", str) # "label" or "headpos"
+    confusiontype=("confusion type", "option", "t", str) # "label" or "headpos" or "labelD" or "headposD" (with direction!)
 )
 def main(train_loc, model_loc, train_oracle="static", n_iter=15, beam_width=1,
          feat_thresh=10, allow_reattach=False, allow_reduce=False, unlabelled=False,
@@ -55,9 +55,10 @@ def main(train_loc, model_loc, train_oracle="static", n_iter=15, beam_width=1,
             except IOError:
                 print >>sys.stderr, "Not in valid format: confusion file"
                 exit()
-            cm = Confusions(confusiontype=confusiontype)
-            cm.readConfusions(confusioninput,list(possible_labels))
-            print cm
+        cm = Confusions(confusiontype=confusiontype)
+        cm.readConfusions(confusioninput,list(possible_labels))
+        print >>sys.stderr, "Possible labels for confusions: {}".format(possible_labels)
+        print cm
 
         print >>sys.stderr, "Done."
 

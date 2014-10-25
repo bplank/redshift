@@ -139,6 +139,7 @@ cdef class BaseParser:
             for i in indices:
                 if DEBUG:
                     print ' '.join(sents.strings[i][0])
+                    #print ' '.join(sents.strings[i][1])
                 if self.train_alg == 'static':
                     self.static_train(n, sents.s[i])
                 else:
@@ -408,6 +409,7 @@ cdef class GreedyParser(BaseParser):
         cdef uint64_t* feats
         cdef size_t _ = 0
         label_idx = index.hashes.reverse_label_index()
+        pos_idx = index.hashes.reverse_pos_index()
         cdef double cm_scale = 1.0  #default cost-sensitive value
         while not s.is_finished:
             fill_kernel(s, sent.pos)
@@ -418,7 +420,7 @@ cdef class GreedyParser(BaseParser):
                                          sent.parse.labels, sent.parse.edits)
             gold = pred if costs[pred] == 0 else self._predict(feats, costs, &_)
             
-            if pred != gold and self.cm != None: #if predicted move is different from gold, update
+            if pred != gold: 
                 # get confusion prob
                 predLabelId = s.guess_labels[s.i]
                 goldLabelId = sent.parse.labels[s.i-1]
@@ -427,14 +429,49 @@ cdef class GreedyParser(BaseParser):
             
                 goldLabel=label_idx.get(goldLabelId)
                 predLabel=label_idx.get(predLabelId)
-                if self.cm.confusiontype=="label":
-                    cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
-                elif self.cm.confusiontype=="headpos":
-                    goldHeadPos=sent.pos[goldHeadId]
-                    predHeadPos=sent.pos[predHeadId]
-                    cm_scale = self.cm.getLabelConfusion(goldHeadPos,predHeadPos)
-                #if DEBUG:
-                #    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
+
+                goldHeadPos=pos_idx.get(sent.pos[goldHeadId])
+                predHeadPos=pos_idx.get(sent.pos[predHeadId])
+                currentPos=pos_idx.get(sent.pos[s.i])
+
+                if self.cm != None: #if predicted move is different from gold, update
+
+                    if self.cm.confusiontype=="label":
+                        cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
+                    #print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
+                    elif self.cm.confusiontype=="headpos":
+                        goldHeadPos=pos_idx.get(sent.pos[goldHeadId])
+                        predHeadPos=pos_idx.get(sent.pos[predHeadId])
+                        cm_scale = self.cm.getLabelConfusion(goldHeadPos,predHeadPos)
+                        if cm_scale != 1.0:
+                            print "CONFUSION {} {}: {}".format(goldHeadPos,predHeadPos,cm_scale)
+                    elif self.cm.confusiontype=="labelD": #label with direction
+                        suffixPred="@L" if s.i - predHeadId > 0 else "@R"
+                        suffixGold="@L" if s.i - goldHeadId > 0 else "@R"
+                        cm_scale=self.cm.getLabelConfusion(goldLabel+suffixGold,predLabel+suffixPred)
+                        if cm_scale != 1.0:
+                            print "CONFUSION {} {}: {}".format(goldLabel+suffixGold,predLabel+suffixPred,cm_scale)
+                            #print "UPDATING wrong pred: gold - pred {} {} goldHeadId {} predHeadId {} s.id {}".format(goldLabel+suffixGold,predLabel+suffixPred,goldHeadId,predHeadId,s.i)
+                    elif self.cm.confusiontype=="headposD":
+                        goldHeadPos=pos_idx.get(sent.pos[goldHeadId])
+                        predHeadPos=pos_idx.get(sent.pos[predHeadId])
+                        suffixPred="@L" if s.i - predHeadId > 0 else "@R"
+                        suffixGold="@L" if s.i - goldHeadId > 0 else "@R"
+                        cm_scale = self.cm.getLabelConfusion(goldHeadPos+suffixGold,predHeadPos+suffixPred)
+                        if cm_scale != 1.0:
+                            print "CONFUSION {} {}: {}".format(goldHeadPos+suffixGold,predHeadPos+suffixPred,cm_scale)
+                            #print "UPDATING wrong pred: gold - pred {} {} goldHeadId {} predHeadId {}".format(goldHeadPos+suffixGold,predHeadPos+suffixPred,goldHeadId,predHeadId)
+                    elif self.cm.confusiontype=="posD":
+                        suffixPred="@L" if s.i - predHeadId > 0 else "@R"
+                        suffixGold="@L" if s.i - goldHeadId > 0 else "@R"
+                        cm_scale = self.cm.getLabelConfusion(currentPos+suffixGold,currentPos+suffixPred)
+                        if cm_scale != 1.0:
+                            print "CONFUSION {} {}: {}".format(currentPos+suffixGold,currentPos+suffixPred,cm_scale)
+                    else:
+                        print >>sys.stderr, "Unknown confusion type!"
+                        exit()
+
+                print "UPDATING wrong pred value: {0} id/gold/pred {1}/{4}/{5} label gold/pred {2}/{3} pos currrent/gold/pred {6}/{7}/{8}".format(cm_scale,s.i,goldLabel,predLabel,goldHeadId,predHeadId,currentPos,goldHeadPos,predHeadPos)
 
             if self.cm != None:
                 self.guide.update(pred, gold, feats, cm_scale) # in original code 1 is not used!
@@ -460,6 +497,7 @@ cdef class GreedyParser(BaseParser):
         #print "**moves",[<int>self.moves.labels[h] for h in range(self.moves.max_class)]
         # to have access to label names (maybe move one out for efficiency?)
         label_idx = index.hashes.reverse_label_index()
+        pos_idx = index.hashes.reverse_pos_index()
         cdef double cm_scale = 1.0  #default cost-sensitive value
 
         while not s.is_finished:
@@ -504,8 +542,8 @@ cdef class GreedyParser(BaseParser):
                 if self.cm.confusiontype=="label":
                     cm_scale = self.cm.getLabelConfusion(goldLabel,predLabel)
                 elif self.cm.confusiontype=="headpos":
-                    goldHeadPos=sent.pos[goldHeadId]
-                    predHeadPos=sent.pos[predHeadId]
+                    goldHeadPos=pos_idx.get(sent.pos[goldHeadId])
+                    predHeadPos=pos_idx.get(sent.pos[predHeadId])
                     cm_scale = self.cm.getLabelConfusion(goldHeadPos,predHeadPos)
                 #if DEBUG:
                 #    print "CONFUSION {} {}: {}".format(goldLabel,predLabel,cm_scale)
@@ -576,11 +614,15 @@ def _parse_labels_str(labels_str):
 class Confusions: 
     
     _DEFAULT=1.0
+    _INCL_DIRECTION=False
     
     def __init__(self,confusiontype="label"):
         self.labels=[] #list of dependency labels, corresponding to indices in cm matrix
         self.cm=None #numpy matrix holding actual values
         self.confusiontype=confusiontype
+        if self.confusiontype[-1] == "D":
+            self._INCL_DIRECTION=True
+            print >>sys.stderr, "confusion: include DIRECTION (expect labels to end with @L or @R)"
         
     def getIndex(self,label):
         try:
@@ -597,6 +639,8 @@ class Confusions:
             if idx1 != -1 and idx2 != -1:
                 return self.cm[idx1,idx2]
             else:
+                #print >>sys.stderr, "backup to default {} {}".format(labelGold,labelPred)
+                #print >>sys.stderr self.labels
                 return self._DEFAULT
         except ValueError:
             print >>sys.stderr, "no information on label confusion"
